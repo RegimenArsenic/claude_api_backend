@@ -66,7 +66,12 @@ def query_stream():
         file_path = save_upload_file(file)
     cookie = get_cookie()
     client = Client(cookie)
-    return Response(stream_with_context(client._query_stream(prompt, conversation_id, file_path)), content_type='text/event-stream')
+
+    def handle_result(prompt, conversation_id, file_path):
+      for data in client._query_stream(prompt, conversation_id, file_path):
+        yield f"data: {data}\n\n"
+
+    return Response(handle_result(prompt, conversation_id, file_path), content_type='text/event-stream')
 
 
 @app.route('/reset', methods=['POST'])
