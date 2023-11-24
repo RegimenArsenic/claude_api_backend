@@ -1,0 +1,10 @@
+flask==2.2.2
+python-dotenv==0.21.0
+requests==2.28.1
+curl_cffi
+pillow
+pydantic
+cryptography
+PyPDF2
+python-docx
+Werkzeug==2.2.2

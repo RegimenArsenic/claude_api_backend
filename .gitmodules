@@ -1,0 +1,3 @@
+[submodule "Claude-API"]
+	path = Claude-API
+	url = https://github.com/RegimenArsenic/Claude-API.git
