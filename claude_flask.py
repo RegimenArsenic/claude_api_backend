@@ -19,7 +19,7 @@ def before_request():
     return {'message': 'Unauthorized'}, 401
 
 
-@app.route('/login', methods=['POST'])
+@app.route('/api/login', methods=['POST'])
 def login_handler():
   # try:
   data = request.get_json()
