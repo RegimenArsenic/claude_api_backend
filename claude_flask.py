@@ -21,7 +21,6 @@ def before_request():
 
 @app.route('/api/login', methods=['POST'])
 def login_handler():
-  # try:
   data = request.get_json()
   if data:
     if data.get('password') == md5_hash(os.getenv('login_password')):
@@ -44,11 +43,6 @@ def login_handler():
     else:
       return {'message': '密码错误'}, 401
   return {'message': '发生内部错误'}, 401
-
-
-# except Exception as err:
-#   print(str(err))
-#   return {'message': '发生内部错误'}, 500
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -92,6 +86,31 @@ def send_message():
   return jsonify({'response': response})
 
 
+@app.route('/api/stream/chat', methods=['POST'])
+def create_stream_chat():
+  file = None
+  if (len(request.files)):
+    file = request.files['file']
+    data = json.loads(request.form.get("json"))
+  else:
+    data = request.get_json()
+  prompt = data['prompt']
+  file_path = None
+  if file:
+    file_path = save_upload_file(file)
+
+  cookie = get_cookie()
+  client = Client(cookie)
+  conversation = client.create_new_chat()
+  conversation_id = conversation['uuid']
+
+  def handle_result(prompt, conversation_id, file_path):
+    for data in client._query_stream(prompt, conversation_id, file_path):
+      yield f"event:update\ndata:{data}\n\n"
+    yield f"event:finish\ndata:{conversation_id}\n\n"
+
+  return Response(handle_result(prompt, conversation_id, file_path), content_type='text/event-stream')
+
 @app.route('/api/stream', methods=['POST'])
 def query_stream():
   file = None
@@ -110,8 +129,8 @@ def query_stream():
 
   def handle_result(prompt, conversation_id, file_path):
     for data in client._query_stream(prompt, conversation_id, file_path):
-      yield f"event:update\n\ndata: '{data}'\n\n"
-    yield f"event:finish\n\ndata: ''\n\n"
+      yield f"event:update\ndata:{data}\n\n"
+    yield f"event:finish\ndata:{conversation_id}\n\n"
 
   return Response(handle_result(prompt, conversation_id, file_path), content_type='text/event-stream')
 
@@ -177,7 +196,7 @@ def chat_delete_conversation(conversation_id):
   cookie = get_cookie()
   client = Client(cookie)
   result = client.delete_conversation(conversation_id)
-  return jsonify({result: result})
+  return jsonify({"result": result})
 
 
 @app.route('/api/setcookie', methods=['POST'])
@@ -193,3 +212,4 @@ def setcookie():
 if __name__ == '__main__':
   app.run(host='0.0.0.0', port=4149, debug=True, use_reloader=True)
   app.default_encoding = 'utf-8'
+
