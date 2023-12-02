@@ -4,6 +4,7 @@ import jwt
 import hashlib
 from dotenv import load_dotenv
 from PIL import Image
+import time
 
 
 def md5_hash(input_string):
@@ -21,7 +22,7 @@ def sign(data={}):
 @staticmethod
 def decode_auth_token(auth_token):
   try:
-    payload = jwt.decode(auth_token, os.getenv('secret_key'), algorithms='HS256')
+    payload = jwt.decode(auth_token.replace('Bearer ', ''), os.getenv('secret_key'), algorithms='HS256')
     if ('data' in payload and 'id' in payload['data']):
       return payload
     else:
@@ -35,22 +36,30 @@ def decode_auth_token(auth_token):
 # 用户鉴权
 def authorize(req):
   try:
-    data = req.get_json()
-    authPassword = os.getenv('login_password')
-    if (not authPassword):
-      return True
     if (req is None):
       return False
-    authorization = req.cookies.get('Authorization')
+    authorization = req.cookies.get('Authorization') or req.headers['Authorization']
     if (authorization):
       payload = decode_auth_token(authorization)
       if not isinstance(payload, str):
-        authPassword = hashlib.md5(authPassword).hexdigest()
-        password = data.get('password')
-        if (password != authPassword):
+        if (time.time() > payload.get('exp')):
           return False
         else:
           return True
+      else:
+        return False
+    else:
+      data = req.get_json()
+      authPassword = os.getenv('login_password')
+      if (not authPassword):
+        return True
+      authPassword = hashlib.md5(authPassword).hexdigest()
+      password = data.get('password')
+      if (password != authPassword):
+        return False
+      else:
+        return True
+
     return False
 
   except jwt.ExpiredSignatureError:
@@ -63,12 +72,12 @@ def authorize(req):
 
 
 # 定义白名单
-white_list = ['/login']
+white_list = ['/api/login']
 
 
 # 授权处理函数
-async def authorize_handler(req):
-  if req.url not in white_list:
+def authorize_handler(req):
+  if req.path not in white_list:
     # 判断请求头是否携带正确的token
     try:
       return authorize(req)

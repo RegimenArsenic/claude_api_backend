@@ -1,6 +1,6 @@
 from common.utils import *
 import sys
-
+from urllib.parse import quote
 sys.path.append("./Claude-API/claude-api")
 import os
 import json
@@ -9,7 +9,6 @@ from claude_api import Client
 import datetime
 
 app = Flask(__name__)
-
 
 # 注册中间件，使其对所有请求生效
 @app.before_request
@@ -45,18 +44,13 @@ def login_handler():
   return {'message': '发生内部错误'}, 401
 
 
-@app.route('/api/chat', methods=['POST'])
+@app.route('/api/new')
 def create_chat():
-  data = request.get_json()
-  prompt = data['prompt']
-
   cookie = get_cookie()
   client = Client(cookie)
   conversation = client.create_new_chat()
   conversation_id = conversation['uuid']
-
-  response = client.send_message(prompt, conversation_id)
-  return jsonify({'conversation_id': conversation_id, 'response': response})
+  return jsonify({'conversation_id': conversation_id})
 
 
 @app.route('/api/chat/<conversation_id>')
@@ -85,32 +79,6 @@ def send_message():
   response = client.send_message(prompt, conversation_id, file_path)
   return jsonify({'response': response})
 
-
-@app.route('/api/stream/chat', methods=['POST'])
-def create_stream_chat():
-  file = None
-  if (len(request.files)):
-    file = request.files['file']
-    data = json.loads(request.form.get("json"))
-  else:
-    data = request.get_json()
-  prompt = data['prompt']
-  file_path = None
-  if file:
-    file_path = save_upload_file(file)
-
-  cookie = get_cookie()
-  client = Client(cookie)
-  conversation = client.create_new_chat()
-  conversation_id = conversation['uuid']
-
-  def handle_result(prompt, conversation_id, file_path):
-    for data in client._query_stream(prompt, conversation_id, file_path):
-      yield f"event:update\ndata:{data}\n\n"
-    yield f"event:finish\ndata:{conversation_id}\n\n"
-
-  return Response(handle_result(prompt, conversation_id, file_path), content_type='text/event-stream')
-
 @app.route('/api/stream', methods=['POST'])
 def query_stream():
   file = None
@@ -128,9 +96,11 @@ def query_stream():
   client = Client(cookie)
 
   def handle_result(prompt, conversation_id, file_path):
+    str=''
     for data in client._query_stream(prompt, conversation_id, file_path):
-      yield f"event:update\ndata:{data}\n\n"
-    yield f"event:finish\ndata:{conversation_id}\n\n"
+      str+=data
+      yield f"event:update\ndata:{quote(data)}\n\n"
+    yield f"event:finish\ndata:{quote(str)}\n\n"
 
   return Response(handle_result(prompt, conversation_id, file_path), content_type='text/event-stream')
 
